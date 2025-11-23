@@ -1,0 +1,36 @@
+trigger:
+- main
+
+variables:
+  AWS_REGION: 'us-east-1'
+  IMAGE_TAG: '$(Build.BuildId)'
+  ECR_ACCOUNT: '396067939467' # substitua pelo ID da tua conta AWS
+
+stages:
+- stage: Build_And_Push
+  displayName: 'Buildar e enviar imagens para o ECR'
+  jobs:
+  - job: BuildAndPush
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: AWSCLI@1
+      inputs:
+        awsCredentials: 'aws-service-connection' # criado no DevOps
+        regionName: '$(AWS_REGION)'
+        command: 'ecr get-login-password'
+        customCommand: 'aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(ECR_ACCOUNT).dkr.ecr.$(AWS_REGION).amazonaws.com'
+    
+    - script: |
+        docker build -t tismed-api:$(IMAGE_TAG) ./src/TisMed.Api
+        docker build -t tismed-auth-api:$(IMAGE_TAG) ./src/TisMed.Auth.Api
+        docker build -t tismed-admin-api:$(IMAGE_TAG) ./src/TisMed.Admin.Api
+
+        docker tag tismed-api:$(IMAGE_TAG) $(ECR_ACCOUNT).dkr.ecr.$(AWS_REGION).amazonaws.com/tismed-api:$(IMAGE_TAG)
+        docker tag tismed-auth-api:$(IMAGE_TAG) $(ECR_ACCOUNT).dkr.ecr.$(AWS_REGION).amazonaws.com/tismed-auth-api:$(IMAGE_TAG)
+        docker tag tismed-admin-api:$(IMAGE_TAG) $(ECR_ACCOUNT).dkr.ecr.$(AWS_REGION).amazonaws.com/tismed-admin-api:$(IMAGE_TAG)
+
+        docker push $(ECR_ACCOUNT).dkr.ecr.$(AWS_REGION).amazonaws.com/tismed-api:$(IMAGE_TAG)
+        docker push $(ECR_ACCOUNT).dkr.ecr.$(AWS_REGION).amazonaws.com/tismed-auth-api:$(IMAGE_TAG)
+        docker push $(ECR_ACCOUNT).dkr.ecr.$(AWS_REGION).amazonaws.com/tismed-admin-api:$(IMAGE_TAG)
+      displayName: 'Build & Push Docker Images'
